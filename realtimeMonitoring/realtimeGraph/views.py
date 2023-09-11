@@ -515,6 +515,50 @@ La respuesta tiene esta estructura:
     "end": endTime
 }
 """
+def calculate_heat_index(temperature_celsius, humidity):
+    # Coeficientes de la fórmula
+    c1 = 16.923
+    c2 = 0.185212
+    c3 = 5.37941
+    c4 = -0.100254
+    c5 = 9.41695 * 10**-3
+    c6 = 7.28898 * 10**-3
+    c7 = 3.45372 * 10**-4
+    c8 = -8.14971 * 10**-4
+    c9 = 1.02102 * 10**-5
+    c10 = -3.8646 * 10**-5
+    c11 = 2.91583 * 10**-5
+
+    # Asegúrate de que la temperatura esté en grados Celsius
+    if temperature_celsius < 27.0:
+        heat_index = temperature_celsius  # No se aplica la fórmula por debajo de 27°C
+    else:
+        heat_index = (c1 + c2 * temperature_celsius + c3 * humidity +
+                      c4 * temperature_celsius * humidity +
+                      c5 * temperature_celsius**2 +
+                      c6 * humidity**2 +
+                      c7 * temperature_celsius**2 * humidity +
+                      c8 * temperature_celsius * humidity**2 +
+                      c9 * temperature_celsius**2 * humidity**2 +
+                      c10 * temperature_celsius**3 * humidity +
+                      c11 * temperature_celsius * humidity**3)
+
+    return heat_index
+
+
+
+def calculate_dew_point(temperature_celsius, humidity_percentage):
+    try:
+        # Comprobación de que la humedad esté en el rango de 0 a 100
+        if humidity_percentage < 0 or humidity_percentage > 100:
+            raise ValueError("La humedad relativa debe estar en el rango de 0 a 100.")
+
+        # Cálculo del punto de rocío en grados Celsius
+        dew_point_celsius = temperature_celsius - ((100 - humidity_percentage) / 5)
+
+        return dew_point_celsius
+    except Exception as e:
+        return None
 
 
 def get_map_json(request, **kwargs):
@@ -524,7 +568,10 @@ def get_map_json(request, **kwargs):
     selectedMeasure = None
     measurements = Measurement.objects.all()
 
-    if measureParam != None:
+    if measureParam == 'Ambiente':
+        selectedMeasureTemp = Measurement.objects.filter(name="Temperatura")[0]
+        selectedMeasureHum = Measurement.objects.filter(name="Humedad")[0]
+    elif measureParam != None:
         selectedMeasure = Measurement.objects.filter(name=measureParam)[0]
     elif measurements.count() > 0:
         selectedMeasure = measurements[0]
@@ -555,25 +602,29 @@ def get_map_json(request, **kwargs):
 
     for location in locations:
         stations = Station.objects.filter(location=location)
-        locationData = Data.objects.filter(
-            station__in=stations, measurement__name=selectedMeasure.name,  time__gte=start.date(), time__lte=end.date())
-        if locationData.count() <= 0:
+        locationDataTemp = Data.objects.filter(
+            station__in=stations, measurement__name=selectedMeasureTemp.name,  time__gte=start.date(), time__lte=end.date() )
+        locationDataHum = Data.objects.filter(
+            station__in=stations, measurement__name=selectedMeasureHum.name,  time__gte=start.date(), time__lte=end.date() )
+
+        if locationDataTemp.count() <= 0 or locationDataHum.count() <= 0:
             continue
-        minVal = locationData.aggregate(
-            Min('value'))['value__min']
-        maxVal = locationData.aggregate(
-            Max('value'))['value__max']
-        avgVal = locationData.aggregate(
+        avgValTemp = locationDataTemp.aggregate(
             Avg('value'))['value__avg']
+        avgValHum = locationDataHum.aggregate(
+            Avg('value'))['value__avg']
+        
         data.append({
             'name': f'{location.city.name}, {location.state.name}, {location.country.name}',
             'lat': location.lat,
             'lng': location.lng,
             'population': stations.count(),
-            'min': minVal if minVal != None else 0,
-            'max': maxVal if maxVal != None else 0,
-            'avg': round(avgVal if avgVal != None else 0, 2),
+            'avgTemp': round(avgValTemp if avgValTemp != None else 0, 2),
+            'avgHum': round(avgValHum if avgValHum != None else 0, 2),
+            'heatIndex': round(calculate_heat_index(avgValTemp, avgValHum) if calculate_heat_index(avgValTemp, avgValHum) != None else 0, 2),
+            'dewPoint': round(calculate_dew_point(avgValTemp, avgValHum) if calculate_dew_point(avgValTemp, avgValHum) != None else 0, 2)
         })
+        
 
     startFormatted = start.strftime("%d/%m/%Y") if start != None else " "
     endFormatted = end.strftime("%d/%m/%Y") if end != None else " "
