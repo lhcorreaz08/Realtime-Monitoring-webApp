@@ -543,13 +543,16 @@ def get_map_json(request, **kwargs):
     data_result = {}
 
     measureParam = kwargs.get("measure", None)
-    selectedMeasureTemp = Measurement.objects.filter(name="Temperatura").first()
-    selectedMeasureHum = Measurement.objects.filter(name="Humedad").first()
+    selectedMeasure = None
+    measurements = Measurement.objects.all()
 
-    if measureParam and measureParam != 'Ambiente':
+    if measureParam == 'Ambiente':
+        selectedMeasureTemp = Measurement.objects.filter(name="Temperatura").first()
+        selectedMeasureHum = Measurement.objects.filter(name="Humedad").first()
+    elif  measureParam != 'None':
         selectedMeasure = Measurement.objects.filter(name=measureParam).first()
-    else:
-        selectedMeasure = None
+    elif measurements.count() > 0:
+        selectedMeasure = measurements[0]
 
     locations = Location.objects.all()
     try:
@@ -574,12 +577,15 @@ def get_map_json(request, **kwargs):
 
     data = []
 
+    start_ts = int(start.timestamp() * 1000000)
+    end_ts = int(end.timestamp() * 1000000)
+
     for location in locations:
         stations = Station.objects.filter(location=location)
         locationDataTemp = Data.objects.filter(
-            station__in=stations, measurement=selectedMeasureTemp, time__gte=start, time__lte=end)
+            station__in=stations, measurement=selectedMeasureTemp, time__gte=start_ts, time__lte=end_ts)
         locationDataHum = Data.objects.filter(
-            station__in=stations, measurement=selectedMeasureHum, time__gte=start, time__lte=end)
+            station__in=stations, measurement=selectedMeasureHum, time__gte=start_ts, time__lte=end_ts)
 
         if locationDataTemp.count() <= 0 or locationDataHum.count() <= 0:
             continue
