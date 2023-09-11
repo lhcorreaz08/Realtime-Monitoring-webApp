@@ -543,18 +543,13 @@ def get_map_json(request, **kwargs):
     data_result = {}
 
     measureParam = kwargs.get("measure", None)
-    selectedMeasure = None
-    measurements = Measurement.objects.all()
+    selectedMeasureTemp = Measurement.objects.filter(name="Temperatura").first()
+    selectedMeasureHum = Measurement.objects.filter(name="Humedad").first()
 
-    if measureParam == 'Ambiente':
-        selectedMeasureTemp = Measurement.objects.filter(name="Temperatura").first()
-        selectedMeasureHum = Measurement.objects.filter(name="Humedad").first()
-    elif measureParam:
-        measurements = Measurement.objects.filter(name=measureParam)
-        if measurements.exists():
-            selectedMeasure = measurements.first()
-    elif measurements.exists():
-        selectedMeasure = measurements.first()
+    if measureParam and measureParam != 'Ambiente':
+        selectedMeasure = Measurement.objects.filter(name=measureParam).first()
+    else:
+        selectedMeasure = None
 
     locations = Location.objects.all()
     try:
@@ -579,15 +574,12 @@ def get_map_json(request, **kwargs):
 
     data = []
 
-    start_ts = int(start.timestamp() * 1000000)
-    end_ts = int(end.timestamp() * 1000000)
-
     for location in locations:
         stations = Station.objects.filter(location=location)
         locationDataTemp = Data.objects.filter(
-            station__in=stations, measurement__name=selectedMeasureTemp.name, time__gte=start, time__lte=end)
+            station__in=stations, measurement=selectedMeasureTemp, time__gte=start, time__lte=end)
         locationDataHum = Data.objects.filter(
-            station__in=stations, measurement__name=selectedMeasureHum.name, time__gte=start, time__lte=end)
+            station__in=stations, measurement=selectedMeasureHum, time__gte=start, time__lte=end)
 
         if locationDataTemp.count() <= 0 or locationDataHum.count() <= 0:
             continue
@@ -618,7 +610,6 @@ def get_map_json(request, **kwargs):
     data_result["data"] = data
 
     return JsonResponse(data_result)
-
 
 class RemaView(TemplateView):
     template_name = "rema.html"
