@@ -589,12 +589,12 @@ def get_map_json(request, **kwargs):
 
         if locationDataTemp.count() <= 0 or locationDataHum.count() <= 0:
             continue
-        avgValTemp = locationDataTemp.aggregate(
-            Avg('value'))['value__avg']
-        avgValHum = locationDataHum.aggregate(
-            Avg('value'))['value__avg']
 
-        data.append({
+
+        avgValTemp = locationDataTemp.aggregate(Avg("avg_value"))["avg_value__avg"]
+        avgValHum = locationDataHum.aggregate(Avg("avg_value"))["avg_value__avg"]
+        data.append(
+            {
             'name': f'{location.city.name}, {location.state.name}, {location.country.name}',
             'lat': location.lat,
             'lng': location.lng,
@@ -605,7 +605,8 @@ def get_map_json(request, **kwargs):
                 avgValTemp, avgValHum) is not None else 0, 2),
             'dewPoint': round(calculate_dew_point(avgValTemp, avgValHum) if calculate_dew_point(
                 avgValTemp, avgValHum) is not None else 0, 2)
-        })
+            }
+        )
 
     startFormatted = start.strftime("%d/%m/%Y") if start is not None else " "
     endFormatted = end.strftime("%d/%m/%Y") if end is not None else " "
