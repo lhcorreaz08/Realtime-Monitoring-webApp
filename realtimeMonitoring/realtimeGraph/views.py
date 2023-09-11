@@ -547,12 +547,14 @@ def get_map_json(request, **kwargs):
     measurements = Measurement.objects.all()
 
     if measureParam == 'Ambiente':
-        selectedMeasureTemp = Measurement.objects.filter(name="Temperatura")[0]
-        selectedMeasureHum = Measurement.objects.filter(name="Humedad")[0]
-    elif measureParam != None:
-        selectedMeasure = Measurement.objects.filter(name=measureParam)[0]
-    elif measurements.count() > 0:
-        selectedMeasure = measurements[0]
+        selectedMeasureTemp = Measurement.objects.filter(name="Temperatura").first()
+        selectedMeasureHum = Measurement.objects.filter(name="Humedad").first()
+    elif measureParam:
+        measurements = Measurement.objects.filter(name=measureParam)
+        if measurements.exists():
+            selectedMeasure = measurements.first()
+    elif measurements.exists():
+        selectedMeasure = measurements.first()
 
     locations = Location.objects.all()
     try:
@@ -563,17 +565,16 @@ def get_map_json(request, **kwargs):
         start = None
     try:
         end = datetime.fromtimestamp(
-            float(request.GET.get("to", None)) / 1000)
+            float(request.GET.get("to", None)) / 1000
+        )
     except:
         end = None
-    if start == None and end == None:
-        start = datetime.now()
-        start = start - dateutil.relativedelta.relativedelta(weeks=1)
+    if start is None and end is None:
+        start = datetime.now() - dateutil.relativedelta.relativedelta(weeks=1)
+        end = datetime.now() + dateutil.relativedelta.relativedelta(days=1)
+    elif end is None:
         end = datetime.now()
-        end += dateutil.relativedelta.relativedelta(days=1)
-    elif end == None:
-        end = datetime.now()
-    elif start == None:
+    elif start is None:
         start = datetime.fromtimestamp(0)
 
     data = []
@@ -584,9 +585,9 @@ def get_map_json(request, **kwargs):
     for location in locations:
         stations = Station.objects.filter(location=location)
         locationDataTemp = Data.objects.filter(
-            station__in=stations, measurement__name=selectedMeasureTemp.name,  time__gte=start_ts.date(), time__lte=end_ts.date() )
+            station__in=stations, measurement__name=selectedMeasureTemp.name, time__gte=start, time__lte=end)
         locationDataHum = Data.objects.filter(
-            station__in=stations, measurement__name=selectedMeasureHum.name,  time__gte=start_ts.date(), time__lte=end_ts.date() )
+            station__in=stations, measurement__name=selectedMeasureHum.name, time__gte=start, time__lte=end)
 
         if locationDataTemp.count() <= 0 or locationDataHum.count() <= 0:
             continue
@@ -594,21 +595,22 @@ def get_map_json(request, **kwargs):
             Avg('value'))['value__avg']
         avgValHum = locationDataHum.aggregate(
             Avg('value'))['value__avg']
-        
+
         data.append({
             'name': f'{location.city.name}, {location.state.name}, {location.country.name}',
             'lat': location.lat,
             'lng': location.lng,
             'population': stations.count(),
-            'avgTemp': round(avgValTemp if avgValTemp != None else 0, 2),
-            'avgHum': round(avgValHum if avgValHum != None else 0, 2),
-            'heatIndex': round(calculate_heat_index(avgValTemp, avgValHum) if calculate_heat_index(avgValTemp, avgValHum) != None else 0, 2),
-            'dewPoint': round(calculate_dew_point(avgValTemp, avgValHum) if calculate_dew_point(avgValTemp, avgValHum) != None else 0, 2)
-        })    
+            'avgTemp': round(avgValTemp if avgValTemp is not None else 0, 2),
+            'avgHum': round(avgValHum if avgValHum is not None else 0, 2),
+            'heatIndex': round(calculate_heat_index(avgValTemp, avgValHum) if calculate_heat_index(
+                avgValTemp, avgValHum) is not None else 0, 2),
+            'dewPoint': round(calculate_dew_point(avgValTemp, avgValHum) if calculate_dew_point(
+                avgValTemp, avgValHum) is not None else 0, 2)
+        })
 
-
-    startFormatted = start.strftime("%d/%m/%Y") if start != None else " "
-    endFormatted = end.strftime("%d/%m/%Y") if end != None else " "
+    startFormatted = start.strftime("%d/%m/%Y") if start is not None else " "
+    endFormatted = end.strftime("%d/%m/%Y") if end is not None else " "
 
     data_result["locations"] = [loc.str() for loc in locations]
     data_result["start"] = startFormatted
